@@ -31,13 +31,14 @@ func NewNode(self types.PeerInfo) *Node {
 
 func (n *Node) StartHTTPServer(addr string) {
 	http.HandleFunc("/join", n.handleJoin)
-	http.HandleFunc("/heartbeat", n.handleHeartbeat)
 	http.HandleFunc("/peers", n.handlePeers)
+	http.HandleFunc("/state", n.handleState)
+
+	http.HandleFunc("/heartbeat", n.handleHeartbeat)
 
 	http.HandleFunc("/increment", n.handleIncrement)
 	http.HandleFunc("/count", n.handleCount)
 	http.HandleFunc("/apply", n.handleApply)
-	http.HandleFunc("/state", n.handleState)
 
 	go n.sender.Run()
 	log.Printf("node %s listening on %s (public %s)", n.self.ID, addr, n.self.Addr)
@@ -114,7 +115,7 @@ func (n *Node) handleState(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, n.counter.Snapshot())
 }
 
-// Bootstrap (join & initial sync)
+// join & initial sync
 func (n *Node) Bootstrap(peersCSV, httpAddr string) {
 	client := &http.Client{Timeout: 2 * time.Second}
 	peers := parsePeers(peersCSV)
@@ -126,7 +127,7 @@ func (n *Node) Bootstrap(peersCSV, httpAddr string) {
 		if !strings.HasPrefix(p, "http") {
 			p = "http://" + p
 		}
-		if err := post(p+"/join", jr, client, nil); err == nil {
+		if err := post(p+"/join", jr, client); err == nil {
 			var pr types.PeersResponse
 			_ = get(p+"/peers", client, &pr)
 			for _, pi := range pr.Peers {
@@ -156,21 +157,22 @@ func parsePeers(csv string) []string {
 	return out
 }
 
-func post(url string, body any, client *http.Client, out any) error {
-	b, _ := json.Marshal(body)
-	req, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
+func post(url string, body any, client *http.Client) error {
+	b, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("status %d", resp.StatusCode)
-	}
-	if out != nil {
-		return json.NewDecoder(resp.Body).Decode(out)
-	}
+
 	return nil
 }
 

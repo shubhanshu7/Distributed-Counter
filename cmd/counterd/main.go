@@ -9,23 +9,21 @@ import (
 )
 
 func main() {
-	addr := flag.String("addr", ":8081", "listen to address :8081")
-	id := flag.String("id", "", "node ID (defaults to host:port)")
-	peers := flag.String("peers", "", "comma-separated peer addrs (host:port or http://host:port)")
-	public := flag.String("public-addr", "", "publicly reachable base URL (default http://localhost:PORT)")
+	addr := flag.String("addr", ":8081", "default to address :8081")
+	peers := flag.String("peers", "", "example of using the flag-  http://host:port)")
+
 	flag.Parse()
 
-	if *id == "" {
-		host, _ := os.Hostname()
-		*id = fmt.Sprintf("%s%s", host, *addr)
+	host, err := os.Hostname()
+	if err != nil {
+		fmt.Println("Error getting hostname ", err)
+		return
 	}
+	id := fmt.Sprintf("%s%s", host, *addr)
 
-	pub := *public
-	if pub == "" {
-		pub = fmt.Sprintf("http://localhost%s", *addr)
-	}
+	pub := fmt.Sprintf("http://localhost%s", *addr)
 
-	self := types.PeerInfo{ID: *id, Addr: pub}
+	self := types.PeerInfo{ID: id, Addr: pub}
 
 	n := node.NewNode(self)
 	n.Bootstrap(*peers, *addr)
